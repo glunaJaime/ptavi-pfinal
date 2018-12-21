@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+    <account username="jaimemola@urjc.com" passwd="jaimemolapsswd"/>
+    <uaserver ip="127.0.0.1" puerto="5001"/>
+    <rtpaudio puerto="6556"/>
+    <regproxy ip="127.0.0.1" puerto="5060"/>
+    <log path="ua1.txt"/>
+    <audio path="cancion.mp3"/>
+</config>
