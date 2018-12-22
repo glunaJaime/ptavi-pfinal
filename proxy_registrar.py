@@ -143,15 +143,12 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
                     else:
                         line = 'SIP/2.0 401 Unathorized\r\nWWW Authenticate: Digest nonce="'
                         line += digest_nonce(user) + '"\r\n'
-            elif 'invite' in mess[0].lower():
-                # buscar usuario destino y enviar
-                pass
-            elif 'bye' in mess[0].lower():
-                # buscar usuario destino y enviar
-                pass
-            elif 'ack' in mess[0].lower():
-                # buscar usuario destino y enviar
-                pass
+            elif 'invite' or 'bye' or 'ack' in mess[0].lower():
+                user_dst = data.split('\r\n')[0].split()[1].split(':')[1]
+                if user_dst in self.client_data:
+                    self.resent(user_dst,data)
+                else:
+                    line = 'SIP/2.0 404 User not Found\r\n'
             else:
                 # 405 method not allowed
                 line = 'SIP/2.0 405 Method not Allowed\r\n'
@@ -163,6 +160,16 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
         log.sent_to(address[0],address[1],line.replace('\r\n',' '))
         self.wfile.write(bytes(line,'utf-8')+b'\r\n')
         self.register2json()
+
+    def resent(self,user_dst,line):
+
+        address = self.client_data[user_dst]['address']
+        ip = address.split(':')[0]
+        port = int(address.split(':')[1])
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as my_socket:
+            my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            my_socket.connect((ip,port))
+            my_socket.send(bytes(line, 'utf-8'))
         
 if __name__ == "__main__":
 
