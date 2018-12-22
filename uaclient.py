@@ -5,7 +5,7 @@ import sys
 import socket
 from xml.sax import make_parser
 from xml.sax.handler import ContentHandler
-from proxy_registrar import XMLHandler, Log_Writer
+from proxy_registrar import XMLHandler,Log_Writer,digest_response
 
 usage_error = 'usage: python3 uaclient.py config method option'
 methods_allowed = ['register','invite','bye']
@@ -114,9 +114,11 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as my_socket:
         sys.exit('Connection refused')
     log.received_from(pr_ip,pr_port,data.replace('\r\n',' '))
     if '401' in data:
-        # enviar digest response
-        # log.sent_to(pr_ip,pr_port,line.replace('\r\n',' '))
-        pass
+        passwd = config['account_passwd']
+        nonce = data.split('"')[1]
+        line = sip_mess.get_message(method,str(option),digest_response(nonce,passwd))
+        my_socket.send(bytes(line, 'utf-8') + b'\r\n')
+        log.sent_to(pr_ip,pr_port,line.replace('\r\n',' '))
     elif '200' in data:
         # todo correcto
         print(data.replace('\r\n',' '))
