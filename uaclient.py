@@ -118,13 +118,6 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as my_socket:
                 line = sip_mess.get_message('ack',str(option))
                 send(my_socket,pr_address,line)
                 log.sent_to(pr_address[0],str(pr_address[1]),line.replace('\r\n',' '))
-                ip_dst = data.split('\r\n')[4].split()[-1]
-                port_dst = data.split('\r\n')[7].split()[1]
-                mp32rtp = './mp32rtp -i ' + ip_dst + ' -p ' 
-                mp32rtp += port_dst + ' < ' + config['audio_path']
-                cvlc = 'cvlc rtp://@ ' + ip_dst + ':' + port_dst
-                os.system(mp32rtp)
-                os.system(cvlc)
         else:
             print(data.replace('\r\n',' '))
     else:
