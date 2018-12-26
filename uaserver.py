@@ -32,9 +32,8 @@ class ServerHandler(socketserver.DatagramRequestHandler):
                 mp32rtp = './mp32rtp -i ' + self.sesion_data[0] + ' -p ' 
                 mp32rtp += self.sesion_data[1] + ' < ' + config['audio_path']
                 cvlc = 'cvlc rtp://@ ' + self.sesion_data[0] + ':' + self.sesion_data[1]
-                os.system(mp32rtp)
-                os.system(cvlc)
-                self.mp32rtp = []
+                os.system(mp32rtp + ' & ' + cvlc)
+                self.sesion_data = []
                 line = ''
         elif 'bye' in data.lower():
             line = 'SIP/2.0 200 OK\r\n'
@@ -48,8 +47,8 @@ class ServerHandler(socketserver.DatagramRequestHandler):
     def get_mp32rtp(self,data):
         ip = data.split('\r\n')[4].split()[-1]
         port = data.split('\r\n')[7].split()[1]
-        self.mp32rtp.append(ip)
-        self.mp32rtp.append(port)
+        self.sesion_data.append(ip)
+        self.sesion_data.append(port)
 
 if __name__ == "__main__":
 
