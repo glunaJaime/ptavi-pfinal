@@ -1,0 +1,3 @@
+Reestablecer usuarios conectados
+Integración (c)vlc
+Consistencia frente a valores erroneos
