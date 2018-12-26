@@ -1,8 +1,12 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-import os,sys,time,json,socket,socketserver
-
+import os
+import sys
+import time
+import json
+import socket
+import socketserver
 from hashlib import md5
 from xml.sax import make_parser
 from xml.sax.handler import ContentHandler
@@ -12,23 +16,25 @@ dtd_ua = {'account': ['username', 'passwd'],
           'rtpaudio': ['puerto'],
           'regproxy': ['ip', 'puerto'],
           'log': ['path'],
-          'audio':['path']}
+          'audio': ['path']}
 
-dtd_pr = {'server': ['name','ip','puerto'],
-          'database': ['path','passwdpath'],
+dtd_pr = {'server': ['name', 'ip', 'puerto'],
+          'database': ['path', 'passwdpath'],
           'log': ['path']}
 
-def digest_nonce(username,encoding='utf-8'):
+
+def digest_nonce(username, encoding='utf-8'):
     digest = md5()
-    digest.update(bytes(username,encoding))
+    digest.update(bytes(username, encoding))
     digest.digest()
 
     return digest.hexdigest()
 
-def digest_response(nonce,passwd,encoding='utf-8'):
+
+def digest_response(nonce, passwd, encoding='utf-8'):
     digest = md5()
-    digest.update(bytes(nonce,encoding))
-    digest.update(bytes(passwd,encoding))
+    digest.update(bytes(nonce, encoding))
+    digest.update(bytes(passwd, encoding))
     digest.digest()
 
     return digest.hexdigest()
@@ -36,7 +42,7 @@ def digest_response(nonce,passwd,encoding='utf-8'):
 
 class XMLHandler(ContentHandler):
 
-    def __init__(self,att_list):
+    def __init__(self, att_list):
 
         self.list = {}
         self.config = att_list
@@ -51,7 +57,8 @@ class XMLHandler(ContentHandler):
 
         return self.list
 
-def read_config_file(dtd,xml_file):
+
+def read_config_file(dtd, xml_file):
 
     parser = make_parser()
     xml_list = XMLHandler(dtd)
@@ -63,7 +70,7 @@ def read_config_file(dtd,xml_file):
 
 class Log_Writer:
 
-    def __init__(self,log_file,date_format):
+    def __init__(self, log_file, date_format):
 
         if not os.path.exists(log_file):
             os.system('touch ' + log_file)
@@ -72,11 +79,13 @@ class Log_Writer:
 
     def get_date(self):
 
-        return time.strftime((self.date_format),time.gmtime(time.time() + 3600))
+        now = time.gmtime(time.time() + 3600)
 
-    def write(self,line):
+        return time.strftime((self.date_format), now)
 
-        with open(self.file,'a') as log:
+    def write(self, line):
+
+        with open(self.file, 'a') as log:
             log.write(line + '\n')
 
     def starting(self):
@@ -84,21 +93,21 @@ class Log_Writer:
         line = self.get_date() + ' Starting...'
         self.write(line)
 
-    def sent_to(self,ip,port,mess):
+    def sent_to(self, ip, port, mess):
 
         line = self.get_date() + ' Sent to '
-        line += ip + ':' + port + ': ' 
-        line += mess.replace('\r\n',' ')
+        line += ip + ':' + port + ': '
+        line += mess.replace('\r\n', ' ')
         self.write(line)
 
-    def received_from(self,ip,port,mess):
+    def received_from(self, ip, port, mess):
 
         line = self.get_date() + ' Received from '
-        line += ip + ':' + port + ': ' 
-        line += mess.replace('\r\n',' ')
+        line += ip + ':' + port + ': '
+        line += mess.replace('\r\n', ' ')
         self.write(line)
 
-    def error(self,type_error):
+    def error(self, type_error):
 
         line = self.get_date() + ' Error: ' + type_error
         self.write(line)
@@ -112,12 +121,13 @@ class Log_Writer:
 class SIPRegisterHandler(socketserver.DatagramRequestHandler):
     cdata = {}
     cpasswd = {}
-    methods_allowed = ['register','invite','bye','ack']
+    sesions = {}
+    methods_allowed = ['register', 'invite', 'bye', 'ack']
 
     def register2json(self):
 
         with open(config['database_path'], 'w') as registered_file:
-            json.dump(self.cdata,registered_file,sort_keys=True,indent=4)
+            json.dump(self.cdata, registered_file, sort_keys=True, indent=4)
 
     def json2registered(self):
 
@@ -147,8 +157,8 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
 
         self.json2registered()
         data = self.rfile.read().decode('utf-8')
-        address = [self.client_address[0],str(self.client_address[1])]
-        log.received_from(address[0],address[1],data.replace('\r\n',' '))
+        address = [self.client_address[0], str(self.client_address[1])]
+        log.received_from(address[0], address[1], data.replace('\r\n', ' '))
         if 'SIP/2.0' in data:
             mess = data.split('\r\n')
             print_mess = mess[0].split()[0].lower() + ' received'
@@ -164,20 +174,22 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
                             del self.cdata[user]
                         else:
                             print_mess += ': change expires time'
-                            self.cdata[user]['expires'] = self.expires_date(expires)
+                            exp_time = self.expires_date(expires)
+                            self.cdata[user]['expires'] = exp_time
                         line = 'SIP/2.0 200 OK\r\n'
                     else:
                         if 'Digest response' in data:
                             nonce = digest_nonce(user)
-                            response = digest_response(nonce,self.cpasswd[user])
+                            passwd = self.cpasswd[user]
+                            response = digest_response(nonce, passwd)
                             response_user = mess[2].split('"')[-2]
                             if response == response_user:
                                 print_mess += ': accepted'
                                 line = 'SIP/2.0 200 OK\r\n'
-                                address = self.client_address[0]+':'+port
+                                address = self.client_address[0] + ':' + port
                                 expires_time = self.expires_date(expires)
-                                self.cdata[user] = {'address':address,
-                                                    'expires':expires_time}
+                                self.cdata[user] = {'address': address,
+                                                    'expires': expires_time}
                             else:
                                 print_mess += ': denied'
                                 line = ''
@@ -185,13 +197,20 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
                             print_mess += ': not authenticated'
                             nonce = digest_nonce(user)
                             line = 'SIP/2.0 401 Unathorized\r\n'
-                            line +='WWW Authenticate: Digest nonce="' + nonce + '"\r\n'
+                            line += 'WWW Authenticate: Digest nonce="'
+                            line += nonce + '"\r\n'
                 else:
                     user_dst = data.split('\r\n')[0].split()[1].split(':')[1]
                     print_mess += ' to ' + user_dst
                     if user_dst in self.cdata:
+                        if 'invite' in data.lower() and self.correct_sdp(data):
+                            sesion_name = self.get_sesion_name(data)
+                            users = self.users_in_sesion(data)
+                            self.sesions[sesion_name] = users
+                        elif 'bye' in data.lower():
+                            self.delete_sesion(user_dst)
                         print_mess += ': resent'
-                        line = self.resent(user_dst,data)
+                        line = self.resent(user_dst, data)
                     else:
                         print_mess += ': user not found'
                         line = 'SIP/2.0 404 User not Found\r\n'
@@ -204,27 +223,68 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
         self.register2json()
         print(print_mess)
         if line:
-            log.sent_to(address[0],address[1],line.replace('\r\n',' '))
-            self.wfile.write(bytes(line,'utf-8')+b'\r\n')
+            log.sent_to(address[0], address[1], line.replace('\r\n', ' '))
+            self.wfile.write(bytes(line, 'utf-8') + b'\r\n')
 
-    def expires_date(self,exp):
+    def get_sesion_name(self, data):
+
+        for line in data.split('\r\n'):
+            if 's=' in line:
+                sesion_name = line.split('=')[-1]
+                break
+
+        return sesion_name
+
+    def users_in_sesion(self, data):
+
+        users = []
+        for line in data.split('\r\n'):
+            if 'sip' in line:
+                user1 = line.split()[1].split(':')[-1]
+            elif 'o=' in line:
+                user2 = line.split('=')[-1].split()[0]
+
+        return [user1, user2]
+
+    def delete_sesion(self, user):
+
+        deleted = []
+        for sesion in self.sesions:
+            if user in sesion:
+                deleted.append(sesion)
+
+        for sesion in deleted:
+            del self.sesions[sesion]
+
+    def correct_sdp(self, data):
+
+        i = 0
+        l = ['SIP/2.0', 'Content-Type', '', 'v', 'o', 's', 't', 'm', '', '']
+        lines = data.split('\r\n')
+        for j in range(0, len(lines)):
+            if l[j] in lines[j]:
+                i += 1
+
+        return i == len(l)
+
+    def expires_date(self, exp):
 
         now = time.gmtime(time.time() + float(exp))
 
-        return time.strftime('%Y-%m-%d %H:%M:%S',now)
+        return time.strftime('%Y-%m-%d %H:%M:%S', now)
 
-    def resent(self,user_dst,line):
+    def resent(self, user_dst, line):
 
         ip = self.cdata[user_dst]['address'].split(':')[0]
         port = int(self.cdata[user_dst]['address'].split(':')[1])
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as my_socket:
             my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            my_socket.connect((ip,port))
-            log.sent_to(ip,str(port),line.replace('\r\n',' '))
+            my_socket.connect((ip, port))
+            log.sent_to(ip, str(port), line.replace('\r\n', ' '))
             my_socket.send(bytes(line, 'utf-8'))
             try:
                 data = my_socket.recv(1024).decode('utf-8')
-                log.received_from(ip,str(port),data.replace('\r\n',' '))
+                log.received_from(ip, str(port), data.replace('\r\n', ' '))
             except:
                 data = ''
 
@@ -237,13 +297,15 @@ if __name__ == "__main__":
     else:
         xml_file = sys.argv[1]
 
-    config = read_config_file(dtd_pr,xml_file)
-    log = Log_Writer(config['log_path'],'%Y%m%d%H%M%S')
-    address = (config['server_ip'],int(config['server_puerto']))
-    proxy = socketserver.UDPServer((ip,port),SIPRegisterHandler)
+    config = read_config_file(dtd_pr, xml_file)
+    log = Log_Writer(config['log_path'], '%Y%m%d%H%M%S')
+    address = (config['server_ip'], int(config['server_puerto']))
+    proxy = socketserver.UDPServer(address, SIPRegisterHandler)
 
     log.starting()
-    print(config['server_name'] + ' listening at ' + address[0] + ':' + address[1] + '\n')
+    server_mess = config['server_name'] + ' listening at '
+    server_mess += address[0] + ':' + str(address[1])
+    print(server_mess + '\n')
     try:
         proxy.serve_forever()
     except KeyboardInterrupt:
