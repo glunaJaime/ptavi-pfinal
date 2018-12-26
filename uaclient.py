@@ -1,21 +1,19 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-import sys
-import socket
-from xml.sax import make_parser
-from xml.sax.handler import ContentHandler
-from proxy_registrar import XMLHandler,Log_Writer,digest_response
+import os,sys,socket
+
+from proxy_registrar import Log_Writer,digest_response,read_config_file,dtd_ua
 
 usage_error = 'usage: python3 uaclient.py config method option'
-methods_allowed = ['register','invite','bye']
+
 
 class SIPMessages:
 
-    def __init__(self,username,ip,port,rtpport):
+    def __init__(self,username,address,rtpport):
 
         self.user = username
-        self.address = [ip, port]
+        self.address = address
         self.rtpport = rtpport
 
     def get_message(self,method,option,digest=''):
@@ -64,6 +62,21 @@ class SIPMessages:
 
         return mess
 
+def send(socket,address,mess):
+
+    socket.connect(address)
+    print("Sent:\n" + mess)
+    socket.send(bytes(mess, 'utf-8') + b'\r\n')
+    log.sent_to(address[0],str(address[1]),mess.replace('\r\n',' '))
+
+def receive(socket):
+
+    try:
+        return socket.recv(1024).decode('utf-8')
+    except:
+        log.error('No server listenning at ' + pr_address[0] + ':' + str(pr_address[1]))
+        sys.exit('Connection refused')
+
 if len(sys.argv) != 4:
     sys.exit(usage_error)
 else:
@@ -77,55 +90,43 @@ else:
     else:
         option = sys.argv[3]
 
-config = {'account': ['username', 'passwd'],
-          'uaserver': ['ip', 'puerto'],
-          'rtpaudio': ['puerto'],
-          'regproxy': ['ip', 'puerto'],
-          'log': ['path'],
-          'audio':['path']}
-
-parser = make_parser()
-xml_list = XMLHandler(config)
-parser.setContentHandler(xml_list)
-parser.parse(open(xml_file))
-
-config = xml_list.get_tags()
+config = read_config_file(dtd_ua,xml_file)
 log = Log_Writer(config['log_path'],'%Y%m%d%H%M%S')
 user = config['account_username']
-address = (config['uaserver_ip'],config['uaserver_puerto'])
 rtpport = config['rtpaudio_puerto']
-sip_mess = SIPMessages(user,address[0],address[1],rtpport)
+server_address = [config['uaserver_ip'],config['uaserver_puerto']]
+sip_mess = SIPMessages(user,server_address,rtpport)
 
 log.starting()
-pr_ip = config['regproxy_ip']
-pr_port = config['regproxy_puerto']
-
+pr_address = (config['regproxy_ip'],int(config['regproxy_puerto']))
+line = sip_mess.get_message(method,str(option))
 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as my_socket:
     my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    my_socket.connect((pr_ip,int(pr_port)))
-    line = sip_mess.get_message(method,str(option))
-    print("Sent: " + line)
-    my_socket.send(bytes(line, 'utf-8') + b'\r\n')
-    log.sent_to(pr_ip,pr_port,line.replace('\r\n',' '))
-    try:
-        data = my_socket.recv(1024).decode('utf-8')
-    except:
-        log.error('No server listening at ' + pr_ip + ' port ' + pr_port)
-        sys.exit('Connection refused')
-    log.received_from(pr_ip,pr_port,data.replace('\r\n',' '))
+    send(my_socket,pr_address,line)
+    data = receive(my_socket)
+    log.received_from(pr_address[0],str(pr_address[1]),data.replace('\r\n',' '))
     if '401' in data:
-        passwd = config['account_passwd']
-        nonce = data.split('"')[1]
-        line = sip_mess.get_message(method,str(option),digest_response(nonce,passwd))
-        my_socket.send(bytes(line, 'utf-8') + b'\r\n')
-        log.sent_to(pr_ip,pr_port,line.replace('\r\n',' '))
-    elif '200' in data:
-        # todo correcto
+        response = digest_response(data.split('"')[1],config['account_passwd'])
+        line = sip_mess.get_message(method,str(option),response)
+        send(my_socket,pr_address,line)
+        data = receive(my_socket)
+        log.received_from(pr_address[0],str(pr_address[1]),data.replace('\r\n',' '))
         print(data.replace('\r\n',' '))
-    elif ['100','180','200'] in data:
-        # enviar ack
-        line = sip_mess.get_message('ack',str(option))
-        my_socket.send(bytes(line, 'utf-8') + b'\r\n')
+    elif '200' in data:
+        if  '180' in data:
+            if '100' in data:
+                line = sip_mess.get_message('ack',str(option))
+                send(my_socket,pr_address,line)
+                log.sent_to(pr_address[0],str(pr_address[1]),line.replace('\r\n',' '))
+                ip_dst = data.split('\r\n')[4].split()[-1]
+                port_dst = data.split('\r\n')[7].split()[1]
+                mp32rtp = './mp32rtp -i ' + ip_dst + ' -p ' 
+                mp32rtp += port_dst + ' < ' + config['audio_path']
+                cvlc = 'cvlc rtp://@ ' + ip_dst + ':' + port_dst
+                os.system(mp32rtp)
+                os.system(cvlc)
+        else:
+            print(data.replace('\r\n',' '))
     else:
         print(data.replace('\r\n',' '))
 
