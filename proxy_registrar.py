@@ -282,7 +282,7 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
         # si tenemos algo que enviar, lo enviamos
         if line:
             log.sent_to(address[0], address[1], line.replace('\r\n', ' '))
-            self.wfile.write(bytes(line, 'utf-8') + b'\r\n')
+            self.wfile.write(bytes(line, 'utf-8'))
 
     def get_sesion_name(self, data):
 
