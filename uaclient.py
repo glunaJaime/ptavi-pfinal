@@ -81,7 +81,7 @@ def send(socket, address, mess):
 
     socket.connect(address)
     print("Sent:\n" + mess)
-    socket.send(bytes(mess, 'utf-8') + b'\r\n')
+    socket.send(bytes(mess, 'utf-8'))
     log.sent_to(address[0], str(address[1]), mess.replace('\r\n', ' '))
 
 # para recibit creamos una funcion tambien, le introduciremos como
@@ -94,6 +94,24 @@ def receive(socket):
         address = pr_address[0] + ':' + str(pr_address[1])
         log.error('No server listenning at ' + address)
         sys.exit('Connection refused')
+
+# para crear el comando de cvcl y mp32rtp creamos una funcion a la
+# que le introduciremos el mensaje con el cuerpo sdp
+def get_mp32rtp(data):
+
+    ip = data.split('\r\n')[8].split()[-1]
+    port = data.split('\r\n')[-2].split()[1]
+    command = './mp32rtp -i ' + ip + ' -p '
+    command += port + ' < ' + config['audio_path']
+
+    return command
+
+def get_cvlc(data):
+
+    ip = data.split('\r\n')[8].split()[-1]
+    port = data.split('\r\n')[-2].split()[1]
+
+    return 'cvlc rtp://@ ' + ip + ':' + port
 
 # comprobamos los parametros introducidos por si hay algun error
 if len(sys.argv) != 4:
@@ -152,8 +170,6 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as my_socket:
         # escribimos en el fichero de log lo que hemos recibido
         log_data = data.replace('\r\n', ' ')
         log.received_from(pr_address[0], str(pr_address[1]), log_data)
-        # mostramos por pantalla el mensaje recibido
-        print(data.replace('\r\n', ' '))
     # buscamos la respuesta al invite, es decir, 100 Trying, 180 Ringing
     # y 200 ok
     elif '200' in data:
@@ -161,16 +177,16 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as my_socket:
         if '180' in data:
             if '100' in data:
                 # creamos el mensaje ack y lo enviamos
+                mp32rtp = get_mp32rtp(data)
+                cvlc = get_cvlc(data)
                 line = sip_mess.get_message('ack', str(option))
                 send(my_socket, pr_address, line)
+                os.system(mp32rtp + ' & ' + cvlc)
                 log_line = line.replace('\r\n', ' ')
                 log.sent_to(pr_address[0], str(pr_address[1]), log_line)
-        else:
-            # escribimos por pantalla el mensaje recibido
-            print(data.replace('\r\n', ' '))
-    else:
-        # escribimos por pantalla el mensaje recibido
-        print(data.replace('\r\n', ' '))
+
+# mostramos por pantalla el mensaje recibido
+print(data.replace('\r\n', ' '))
 
 # escribimos en el log que hemos terminado
 log.finishing()
