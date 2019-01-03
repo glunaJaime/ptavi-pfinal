@@ -66,7 +66,7 @@ class ServerHandler(socketserver.DatagramRequestHandler):
 
         if line:
             log.sent_to(ip, str(port), line.replace('\r\n', ' '))
-            self.wfile.write(bytes(line, 'utf-8') + b'\r\n')
+            self.wfile.write(bytes(line, 'utf-8'))
 
     def get_mp32rtp(self, data):
         # buscamos la ip
