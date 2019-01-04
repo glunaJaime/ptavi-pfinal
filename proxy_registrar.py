@@ -344,7 +344,7 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
 
         # obtenemos la fecha del momento en que expirara, sumando a la fecha de
         # este momento el tiempo de expiracion
-        now = time.gmtime(time.time() + float(exp))
+        now = time.gmtime(time.time() + 3600 + float(exp))
 
         # escribimos la fecha de expiracion con el formato que se desee
         return time.strftime('%Y-%m-%d %H:%M:%S', now)
